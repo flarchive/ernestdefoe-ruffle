@@ -2,13 +2,20 @@
 
 > **Read-only archive of released versions of ernestdefoe/ruffle.** Not for installation: use [Packagist](https://packagist.org/packages/ernestdefoe/ruffle) or the [upstream repository](https://github.com/ernestdefoe/ruffle).
 
-**0** versions archived · Latest: [`0.4.0`](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.4.0) · License: `MIT` · Flarum: `^2.0`
+**8** versions archived · Latest: [`0.4.0`](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.4.0) · License: `MIT` · Flarum: `^2.0`
 
 ## Archived Versions
 
 | Version | Released | Flarum | Source |
 |---|---|---|---|
-| — | — | — | — |
+| `0.1.0` | 2026-09-22 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.1.0) |
+| `0.1.1` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.1.1) |
+| `0.1.2` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.1.2) |
+| `0.1.3` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.1.3) |
+| `0.1.4` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.1.4) |
+| `0.2.0` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.2.0) |
+| `0.3.0` | 2026-09-23 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.3.0) |
+| `0.4.0` | 2026-10-05 | `^2.0` | [Browse](https://github.com/flarchive/ernestdefoe-ruffle/tree/archive/v0.4.0) |
 
 Catalog entry: [packages/ernestdefoe-ruffle.json](https://github.com/flarchive/archive-index/blob/main/packages/ernestdefoe-ruffle.json)
 
