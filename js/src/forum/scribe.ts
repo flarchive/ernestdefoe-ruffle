@@ -1,0 +1,192 @@
+import app from 'flarum/common/app';
+
+/**
+ * Registration with Scribe, if Scribe is there.
+ *
+ * 🚨 Deliberately NOT `import … from 'ext:ernestdefoe/scribe/forum'`. That
+ * compiles to `flarum.reg.get('ernestdefoe-scribe', 'forum')`, which returns
+ * `undefined` on a forum without Scribe — and destructuring an export off
+ * `undefined` throws while this module is still being evaluated, before any
+ * initializer runs. In Flarum that does not break one extension; it aborts the
+ * whole bundle, so every extension registered after this one in the same file
+ * silently never loads, and the error points here rather than at them.
+ *
+ * `onLoad` also removes the ordering question entirely: it fires immediately if
+ * Scribe is already registered, and later if it is not yet.
+ *
+ * 🚨 The module id is `registry`, not `forum`. Flarum's build registers a module
+ * under its own source path and only for modules webpack keeps separate, so
+ * Scribe's bundle exposes `common/toolbarButtons` and `common/ScribeEditorDriver`
+ * and no `forum` at all — waiting on that id waits forever, and the failure is
+ * silent at both ends. `registry` is a name Scribe adds by hand for exactly this
+ * purpose.
+ */
+
+const SCRIBE = 'ernestdefoe-scribe';
+const REGISTRY = 'registry';
+
+interface ScribeApi {
+  registerExtension?: (factory: (kit: any) => any) => void;
+  registerButton?: (button: Record<string, unknown>) => void;
+}
+
+declare const flarum: {
+  reg: {
+    onLoad(namespace: string, id: string, handler: (module: any) => void): void;
+    checkModule(namespace: string, id: string): any | false;
+  };
+  extensions: Record<string, unknown>;
+};
+
+/**
+ * `<embed>`, matching the element the server aliases onto the RUFFLE tag.
+ *
+ * 🚨 The element name and the server alias are one decision written in two
+ * files, and Scribe drops anything its formatter does not recognise at PARSE
+ * time — silently. Change this to some other element without changing
+ * src/Formatter/Configure.php and the post still saves; the movie is just gone
+ * from it, with no error and nothing in the log.
+ *
+ * 🚨 And a custom element is not an option, however much `<ruffle-embed>` would
+ * read better: s9e rejects hyphens in element names outright.
+ */
+function node(kit: any) {
+  const { Node, mergeAttributes } = kit;
+
+  return Node.create({
+    name: 'ruffleFlash',
+    group: 'block',
+    // Nothing inside it, ever — the player is built from attributes alone.
+    atom: true,
+    draggable: true,
+
+    addAttributes() {
+      return {
+        src: { default: null },
+        width: { default: null },
+        height: { default: null },
+        poster: { default: null },
+      };
+    },
+
+    parseHTML() {
+      return [{ tag: 'embed[src]' }];
+    },
+
+    renderHTML({ HTMLAttributes }: any) {
+      return ['embed', mergeAttributes(HTMLAttributes)];
+    },
+
+    /*
+     * 🚨 A card, not the element itself. `<embed>` inside a contenteditable is
+     * a live embed: the browser tries to render the plugin content, which in
+     * 2026 means a broken-plugin box the author cannot select, click past or
+     * delete. What the editor SHOWS and what it SERIALISES are different
+     * things, and renderHTML above is the one that reaches the server.
+     */
+    addNodeView() {
+      return ({ node: n }: any) => {
+        const dom = document.createElement('div');
+        dom.className = 'RuffleEmbed-editorCard';
+        dom.contentEditable = 'false';
+
+        const icon = document.createElement('i');
+        icon.className = 'icon fas fa-bolt';
+        icon.setAttribute('aria-hidden', 'true');
+
+        const label = document.createElement('span');
+        label.textContent = n.attrs.src ?? '';
+
+        dom.append(icon, label);
+
+        // The card shows the poster when there is one, so the author can see
+        // which movie this is without opening the post.
+        if (n.attrs.poster) {
+          const thumb = document.createElement('img');
+          thumb.className = 'RuffleEmbed-editorThumb';
+          thumb.src = n.attrs.poster;
+          thumb.alt = '';
+          dom.prepend(thumb);
+        }
+
+        return { dom };
+      };
+    },
+  });
+}
+
+export default function registerWithScribe(): void {
+  if (typeof flarum === 'undefined' || !flarum.reg) return;
+
+  flarum.reg.onLoad(SCRIBE, REGISTRY, (scribe: ScribeApi) => {
+    scribe.registerExtension?.(node);
+
+    scribe.registerButton?.({
+      key: 'ruffleFlash',
+      icon: 'fas fa-bolt',
+      label: 'flash',
+      translationKey: 'ernestdefoe-ruffle.forum.composer.button',
+      active: (editor: any) => editor.isActive('ruffleFlash'),
+      run: (editor: any) => {
+        app.modal.show(() => import('./InsertFlashModal'), {
+          onsubmit: (movie: {
+            url: string;
+            width: number;
+            height: number;
+            poster: string;
+          }) => {
+            editor
+              .chain()
+              .focus()
+              .insertContent({
+                type: 'ruffleFlash',
+                attrs: {
+                  src: movie.url,
+                  width: String(movie.width),
+                  height: String(movie.height),
+                  // null rather than '' so mergeAttributes omits it entirely;
+                  // an empty attribute would reach the server as a blank URL.
+                  poster: movie.poster || null,
+                },
+              })
+              .run();
+          },
+        });
+      },
+    });
+  });
+}
+
+/**
+ * Whether Scribe's editor is actually in play — which is NOT the same question
+ * as whether Scribe is installed.
+ *
+ * 🚨 This used to ask `'ernestdefoe-scribe' in flarum.extensions`, and that is
+ * wrong in two situations that between them cover most Scribe forums:
+ *
+ *  - Scribe stands its EDITOR down when flarum/markdown or fof/rich-text is
+ *    enabled — its whole frontend bundle is then never loaded (an
+ *    `Extend\Conditional` in its extend.php). The extension is still listed as
+ *    enabled, so the old check said "Scribe has this covered" while Scribe's
+ *    JS was not on the page at all.
+ *  - Scribe before 1.2.0 has no registry to register a button with.
+ *
+ * In both cases the old check skipped our own toolbar button AND no Scribe
+ * button ever appeared, so there was no way to insert a movie from anywhere.
+ * Nothing errored; the feature was simply absent, which is the hardest kind of
+ * gap to notice because every individual piece works.
+ *
+ * Asking whether Scribe's registry actually LOADED answers the real question,
+ * because Scribe's bundle loading is precisely what "Scribe's editor is
+ * active" means.
+ *
+ * 🚨 `checkModule`, not `get`. `flarum.reg.get()` THROWS for a missing module
+ * when the extension is enabled and `flarum.debug` is on — so probing with it
+ * would take down our initializer on exactly the forums where Scribe is
+ * installed but stood down.
+ */
+export function scribeEditorActive(): boolean {
+  if (typeof flarum === 'undefined' || !flarum.reg) return false;
+
+  return flarum.reg.checkModule(SCRIBE, REGISTRY) !== false;
+}
